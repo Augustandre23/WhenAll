@@ -1,3 +1,7 @@
+# fly.toml app configuration file generated for when-all on 2026-05-01T01:53:58Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 # fly.toml app configuration file generated for when-all on 2026-05-01T01:46:34Z
 
 app = 'when-all'
