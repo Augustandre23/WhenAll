@@ -207,6 +207,9 @@ app.post('/api/events/:code/availability', (req, res) => {
   const { userId, slots } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId required' });
 
+  const isParticipant = event.participants.some(p => p.id === userId);
+  if (!isParticipant) return res.status(403).json({ error: 'Not a participant of this event' });
+
   const validSlots = (slots || []).filter(s => event.slots.includes(s));
 
   const roundKey = `round_${event.round}`;

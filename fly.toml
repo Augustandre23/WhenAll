@@ -1,8 +1,4 @@
-# fly.toml app configuration file generated for when-all on 2026-05-01T01:53:58Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-# fly.toml app configuration file generated for when-all on 2026-05-01T01:46:34Z
+# fly.toml app configuration file for when-all
 
 app = 'when-all'
 primary_region = 'ewr'
@@ -16,6 +12,7 @@ primary_region = 'ewr'
 [[mounts]]
   source = "whenall_data"
   destination = "/data"
+  initial_size = "1gb"
 
 [http_service]
   internal_port = 8080
@@ -25,8 +22,10 @@ primary_region = 'ewr'
   min_machines_running = 0
   processes = ['app']
 
+[deploy]
+  strategy = "immediate"
+
 [[vm]]
-  memory = '1gb'
+  memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256
