@@ -37,3 +37,24 @@ COPY --from=build /app /app
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
 CMD [ "npm", "run", "start" ]
+WORKDIR /app
+
+ENV NODE_ENV="production"
+ENV PORT=8080
+
+FROM base AS build
+
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
+
+COPY package-lock.json package.json ./
+RUN npm ci
+
+COPY . .
+
+FROM base
+
+COPY --from=build /app /app
+
+EXPOSE 8080
+CMD [ "node", "server.js" ]

@@ -2,11 +2,15 @@
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
+# fly.toml app configuration file generated for when-all on 2026-05-01T01:46:34Z
 
 app = 'when-all'
 primary_region = 'ewr'
 
 [build]
+
+[env]
+  PORT = "8080"
 
 [http_service]
   internal_port = 8080
