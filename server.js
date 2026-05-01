@@ -5,6 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,8 +14,43 @@ const io = new Server(server);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── In-memory store ─────────────────────────────────────────────────────────
+// ─── Persistent store ────────────────────────────────────────────────────────
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'events.json');
+
 const events = new Map();
+
+function loadEvents() {
+  try {
+    const dir = path.dirname(DATA_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf8');
+      const obj = JSON.parse(raw);
+      for (const [code, event] of Object.entries(obj)) {
+        events.set(code, event);
+      }
+      console.log(`Loaded ${events.size} event(s) from disk`);
+    }
+  } catch (err) {
+    console.error('Failed to load events from disk:', err.message);
+  }
+}
+
+let saveTimer = null;
+function saveEvents() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      const dir = path.dirname(DATA_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(events)), 'utf8');
+    } catch (err) {
+      console.error('Failed to save events to disk:', err.message);
+    }
+  }, 500);
+}
+
+loadEvents();
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -127,6 +163,7 @@ app.post('/api/events', (req, res) => {
   };
 
   events.set(code, event);
+  saveEvents();
   res.json({ userId, event: toClient(event) });
 });
 
@@ -145,7 +182,6 @@ app.post('/api/events/:code/join', (req, res) => {
   const nickname = req.body.nickname?.trim();
   if (!nickname) return res.status(400).json({ error: 'Nickname required' });
 
-  // Return existing participant if nickname matches
   const existing = event.participants.find(
     p => p.nickname.toLowerCase() === nickname.toLowerCase()
   );
@@ -155,6 +191,7 @@ app.post('/api/events/:code/join', (req, res) => {
 
   const userId = uuidv4();
   event.participants.push({ id: userId, nickname });
+  saveEvents();
   io.to(event.code).emit('update', toClient(event));
   res.json({ userId, event: toClient(event) });
 });
@@ -170,19 +207,18 @@ app.post('/api/events/:code/availability', (req, res) => {
   const { userId, slots } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId required' });
 
-  // Only keep valid event slots
   const validSlots = (slots || []).filter(s => event.slots.includes(s));
 
   const roundKey = `round_${event.round}`;
   event.availabilities[roundKey][userId] = validSlots;
 
-  // Check if all participants have submitted
   if (Object.keys(event.availabilities[roundKey]).length >= event.participants.length) {
     event.result = computeResult(event);
     event.status = 'deciding';
     event.votes = {};
   }
 
+  saveEvents();
   io.to(event.code).emit('update', toClient(event));
   res.json(toClient(event));
 });
@@ -206,7 +242,6 @@ app.post('/api/events/:code/vote', (req, res) => {
     if (allAccepted) {
       event.status = 'accepted';
     } else {
-      // Start new round
       event.round += 1;
       event.status = 'collecting';
       event.result = null;
@@ -215,6 +250,7 @@ app.post('/api/events/:code/vote', (req, res) => {
     }
   }
 
+  saveEvents();
   io.to(event.code).emit('update', toClient(event));
   res.json(toClient(event));
 });
@@ -246,6 +282,7 @@ io.on('connection', socket => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`WhenAll running → http://localhost:${PORT}`);
+  console.log(`Data file: ${DATA_FILE}`);
 });
 
 server.on('error', (err) => {
